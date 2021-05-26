@@ -41,6 +41,7 @@ defmodule Phoenix.LiveView.UploadChannel do
 
       socket =
         assign(socket, %{
+          ref: ref,
           path: path,
           handle: handle,
           live_view_pid: pid,
@@ -84,6 +85,7 @@ defmodule Phoenix.LiveView.UploadChannel do
   end
 
   def handle_info(:chunk_timeout, socket) do
+    IO.inspect(socket.assigns.ref, label: "timed out")
     {:stop, {:shutdown, :closed}, socket}
   end
 
@@ -98,6 +100,7 @@ defmodule Phoenix.LiveView.UploadChannel do
 
   @impl true
   def handle_call(:consume_done, from, socket) do
+    IO.inspect(socket.assigns.ref, label: "consume done")
     GenServer.reply(from, :ok)
     {:stop, {:shutdown, :closed}, socket}
   end

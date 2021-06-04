@@ -241,16 +241,24 @@ Hooks.LiveFileUpload = {
   }
 }
 
+let executionTimes = []
 Hooks.LiveImgPreview = {
   mounted() {
     this.ref = this.el.getAttribute("data-phx-entry-ref")
     this.inputEl = document.getElementById(this.el.getAttribute(PHX_UPLOAD_REF))
+    let t0 = performance.now()
     LiveUploader.getEntryDataURL(this.inputEl, this.ref, url => this.el.src = url)
+    let t1 = performance.now()
+    executionTimes.push(t1 - t0)
   }
 }
 
+export function means() {
+   console.log('average LiveImgPreview times', executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length, 'for ', executionTimes.length, ' entries')
+}
+
 let liveUploaderFileRef = 0
-class LiveUploader {
+export class LiveUploader {
   static genFileRef(file){
     let ref = file._phxRef
     if(ref !== undefined){

@@ -227,7 +227,8 @@ defmodule Phoenix.LiveView.Helpers do
         {_, _} -> {nil, do_block, assigns}
       end
 
-    if match?({:__aliases__, _, _}, component) or is_atom(component) or is_list(assigns) or is_map(assigns) do
+    if match?({:__aliases__, _, _}, component) or is_atom(component) or is_list(assigns) or
+         is_map(assigns) do
       quote do
         Phoenix.LiveView.Helpers.__live_component__(
           unquote(component).__live__(),
@@ -413,7 +414,7 @@ defmodule Phoenix.LiveView.Helpers do
 
   @doc false
   def __component__(func, assigns, inner)
-      when is_function(func, 1) and is_list(assigns) or is_map(assigns) do
+      when (is_function(func, 1) and is_list(assigns)) or is_map(assigns) do
     assigns = Map.new(assigns)
     assigns = if inner, do: Map.put(assigns, :inner_block, inner), else: assigns
 
@@ -550,7 +551,7 @@ defmodule Phoenix.LiveView.Helpers do
         data_phx_update: "ignore"
       )
 
-    Phoenix.HTML.Tag.content_tag(:img, "", opts)
+    Phoenix.HTML.Tag.content_tag(:figure, "", opts)
   end
 
   @doc """

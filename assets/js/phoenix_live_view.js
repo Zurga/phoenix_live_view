@@ -241,15 +241,13 @@ Hooks.LiveFileUpload = {
   }
 }
 
-let executionTimes = []
 Hooks.LiveImgPreview = {
   mounted() {
     this.ref = this.el.getAttribute("data-phx-entry-ref")
     this.inputEl = document.getElementById(this.el.getAttribute(PHX_UPLOAD_REF))
-    let t0 = performance.now()
-    LiveUploader.getEntryDataURL(this.inputEl, this.ref, url => this.el.src = url)
-    let t1 = performance.now()
-    executionTimes.push(t1 - t0)
+    this.img = document.createElement("img")
+    this.el.appendChild(this.img)
+    LiveUploader.getEntryDataURL(this.inputEl, this.ref, url => this.img.src = url)
   }
 }
 
@@ -258,7 +256,7 @@ export function means() {
 }
 
 let liveUploaderFileRef = 0
-export class LiveUploader {
+class LiveUploader {
   static genFileRef(file){
     let ref = file._phxRef
     if(ref !== undefined){
@@ -271,9 +269,7 @@ export class LiveUploader {
 
   static getEntryDataURL(inputEl, ref, callback){
     let file = this.activeFiles(inputEl).find(file => this.genFileRef(file) === ref)
-    let reader = new FileReader()
-    reader.onload = (e) => callback(e.target.result)
-    reader.readAsDataURL(file)
+    callback(URL.createObjectURL(file))
   }
 
   static hasUploadsInProgress(formEl){
@@ -459,6 +455,8 @@ class EntryUploader {
         this.entry.progress((this.offset / this.entry.file.size) * 100)
         if(!this.isDone()){
           this.chunkTimer = setTimeout(() => this.readNextChunk(), this.liveSocket.getLatencySim() || 0)
+        } else {
+            URL.revokeObjectURL(this.entry.file)
         }
       })
   }

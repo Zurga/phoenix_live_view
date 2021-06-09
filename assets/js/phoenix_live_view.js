@@ -131,7 +131,7 @@ let isEmpty = (obj) => {
 
 let maybe = (el, callback) => el && callback(el)
 
-class UploadEntry {
+export class UploadEntry {
   static isActive(fileEl, file){
     let isNew = file._phxRef === undefined
     let activeRefs = fileEl.getAttribute(PHX_ACTIVE_ENTRY_REFS).split(",")
@@ -261,7 +261,7 @@ export function means() {
 }
 
 let liveUploaderFileRef = 0
-class LiveUploader {
+export class LiveUploader {
   static genFileRef(file){
     let ref = file._phxRef
     if(ref !== undefined){
@@ -378,6 +378,7 @@ class LiveUploader {
         })
         return entry
       })
+    console.log('entries', this._entries)
 
     let groupedEntries = this._entries.reduce((acc, entry) => {
       let {name, callback} = entry.uploader(liveSocket.uploaders)
@@ -398,7 +399,7 @@ let uploadEntry = function(entry, resp, liveSocket) {
   return entryUploader
 }
 
-let channelUploader = function(entries, onError, resp, liveSocket) {
+export let channelUploader = function(entries, onError, resp, liveSocket) {
   let uploaders = entries.map(entry => uploadEntry(entry, resp, liveSocket))
   if (entries.length <= resp.config.max_concurrency) {
     uploaders.forEach(uploader => uploader.upload()) 
@@ -2904,6 +2905,7 @@ export class View {
       this.uploaders[inputEl] = uploader
       let entries = uploader.entries().map(entry => entry.toPreflightPayload())
 
+        console.log('targetCtx', targetCtx)
       let payload = {
         ref: inputEl.getAttribute(PHX_UPLOAD_REF),
         entries: entries,

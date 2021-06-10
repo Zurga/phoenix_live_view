@@ -256,10 +256,6 @@ Hooks.LiveImgPreview = {
   }
 }
 
-export function means() {
-   console.log('average LiveImgPreview times', executionTimes.reduce((a, b) => a + b, 0) / executionTimes.length, 'for ', executionTimes.length, ' entries')
-}
-
 let liveUploaderFileRef = 0
 export class LiveUploader {
   static genFileRef(file){
@@ -378,7 +374,6 @@ export class LiveUploader {
         })
         return entry
       })
-    console.log('entries', this._entries)
 
     let groupedEntries = this._entries.reduce((acc, entry) => {
       let {name, callback} = entry.uploader(liveSocket.uploaders)
@@ -416,7 +411,10 @@ let uploadInBatches = function(uploaders, onError, resp, liveSocket) {
   if (entriesToProcess.length === 0) return
 
   for (let i = 0; i < resp.config.max_concurrency - inProgress; i++) {
-    entriesToProcess[i].upload()
+    const entry = entriesToProcess[i]
+    if (entry) {
+        entry.upload()
+    }
   }
 
   setTimeout(uploadInBatches, 700, uploaders, onError, resp, liveSocket)
@@ -2905,7 +2903,6 @@ export class View {
       this.uploaders[inputEl] = uploader
       let entries = uploader.entries().map(entry => entry.toPreflightPayload())
 
-        console.log('targetCtx', targetCtx)
       let payload = {
         ref: inputEl.getAttribute(PHX_UPLOAD_REF),
         entries: entries,

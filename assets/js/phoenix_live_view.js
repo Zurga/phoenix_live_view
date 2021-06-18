@@ -416,7 +416,7 @@ let uploadInBatches = function(uploaders, onError, resp, liveSocket) {
   }
   for (let i = 0; i < resp.config.max_concurrency - inProgress; i++) {
     const entry = entriesToProcess[i]
-    if (entry) {
+    if (entry && !entry.hasStarted() && !entry.isDone()) {
         entry.upload(callback)
     }
   }

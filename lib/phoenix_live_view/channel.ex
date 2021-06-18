@@ -991,21 +991,16 @@ defmodule Phoenix.LiveView.Channel do
     write_socket(state, cid, nil, fn socket, _ ->
       conf = Upload.get_upload_by_ref!(socket, ref)
 
-      if length(Map.keys(state.upload_pids)) <= conf.max_concurrency do
-        case Upload.register_entry_upload(socket, conf, pid, entry_ref) do
-          {:ok, new_socket, entry} ->
-            reply = %{max_file_size: entry.client_size, chunk_timeout: conf.chunk_timeout}
-            GenServer.reply(from, {:ok, reply})
-            new_state = put_upload_pid(state, pid, ref, entry_ref, cid)
-            {new_socket, {:ok, nil, new_state}}
+      case Upload.register_entry_upload(socket, conf, pid, entry_ref) do
+        {:ok, new_socket, entry} ->
+          reply = %{max_file_size: entry.client_size, chunk_timeout: conf.chunk_timeout}
+          GenServer.reply(from, {:ok, reply})
+          new_state = put_upload_pid(state, pid, ref, entry_ref, cid)
+          {new_socket, {:ok, nil, new_state}}
 
-          {:error, reason} ->
-            GenServer.reply(from, {:error, reason})
-            {socket, :error}
-        end
-      else
-        GenServer.reply(from, {:error, :max_concurrency_reached})
-        {socket, :error}
+        {:error, reason} ->
+          GenServer.reply(from, {:error, reason})
+          {socket, :error}
       end
     end)
   end

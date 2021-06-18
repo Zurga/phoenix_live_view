@@ -479,7 +479,7 @@ class EntryUploader {
           this.chunkTimer = setTimeout(() => this.readNextChunk(callback), this.liveSocket.getLatencySim() || 0)
         } else {
             URL.revokeObjectURL(this.entry.file)
-            callback(this.entry.ref)
+            callback()
         }
       })
   }

@@ -404,20 +404,23 @@ export let channelUploader = function(entries, onError, resp, liveSocket) {
 }
 
 let uploadInBatches = function(uploaders, onError, resp, liveSocket) {
-  const inProgress = uploaders.filter(u => u.hasStarted() && !u.isDone()).length
   // Filter out the entries that have already started uploading or are done uploading or are cancelled
   const entriesToProcess = uploaders.filter((u) => !(u.isDone() || u.hasStarted()) && !u.entry.isCancelled())
 
   if (entriesToProcess.length === 0) return
 
+  const inProgress = uploaders.filter(u => u.hasStarted() && !u.isDone()).length
+
+  const callback = () => {
+      uploadInBatches(uploaders, onError, resp, liveSocket)
+  }
   for (let i = 0; i < resp.config.max_concurrency - inProgress; i++) {
     const entry = entriesToProcess[i]
     if (entry) {
-        entry.upload()
+        entry.upload(callback)
     }
   }
 
-  setTimeout(uploadInBatches, 700, uploaders, onError, resp, liveSocket)
 }
 
 class EntryUploader {
@@ -437,12 +440,12 @@ class EntryUploader {
     this.entry.error(reason)
   }
 
-  upload(){
+  upload(callback){
     this._started = true
     this.uploadChannel.onError(reason => this.error(reason))
     this.uploadChannel.join()
       .receive("ok", data => {
-        this.readNextChunk()
+        this.readNextChunk(callback)
       })
       .receive("error", reason => {
           console.log("error",reason)
@@ -453,13 +456,13 @@ class EntryUploader {
   hasStarted() { return this._started }
   isDone(){ return this.offset >= this.entry.file.size }
 
-  readNextChunk(){
+  readNextChunk(callback){
     let reader = new window.FileReader()
     let blob = this.entry.file.slice(this.offset, this.chunkSize + this.offset)
     reader.onload = (e) => {
       if(e.target.error === null){
         this.offset += e.target.result.byteLength
-        this.pushChunk(e.target.result)
+        this.pushChunk(e.target.result, callback)
       } else {
         return logError("Read error: " + e.target.error)
       }
@@ -467,15 +470,16 @@ class EntryUploader {
     reader.readAsArrayBuffer(blob)
   }
 
-  pushChunk(chunk){
+  pushChunk(chunk, callback){
     if(!this.uploadChannel.isJoined()){ return }
     this.uploadChannel.push("chunk", chunk)
       .receive("ok", () => {
         this.entry.progress((this.offset / this.entry.file.size) * 100)
         if(!this.isDone()){
-          this.chunkTimer = setTimeout(() => this.readNextChunk(), this.liveSocket.getLatencySim() || 0)
+          this.chunkTimer = setTimeout(() => this.readNextChunk(callback), this.liveSocket.getLatencySim() || 0)
         } else {
             URL.revokeObjectURL(this.entry.file)
+            callback(this.entry.ref)
         }
       })
   }

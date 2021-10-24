@@ -75,7 +75,7 @@ Uploaders.UpChunk = function(entries, onViewError){
   entries.forEach(entry => {
     // create the upload session with UpChunk
     let { file, meta: { entrypoint } } = entry
-    let upload = UpChunk.createUpload({ entrypoint, file })
+    let upload = UpChunk.createUpload({ endpoint: entrypoint, file })
 
     // stop uploading in the event of a view error
     onViewError(() => upload.pause())
@@ -105,6 +105,26 @@ let liveSocket = new LiveSocket("/live", Socket, {
 In order to enforce all of your file constraints when
 uploading to S3, it is necessary to perform a multipart form
 POST with your file data.
+
+This guide assumes an existing S3 bucket with the correct CORS configuration
+which allows uploading directly to the bucket.
+
+An example CORS config is:
+
+```js
+[
+    {
+        "AllowedHeaders": [ "*" ],
+        "AllowedMethods": [ "PUT", "POST" ],
+        "AllowedOrigins": [ your_domain_or_*_here ],
+        "ExposeHeaders": []
+    }
+]
+```
+
+More information on configuring CORS for S3 buckets is available at:
+
+https://docs.aws.amazon.com/AmazonS3/latest/userguide/ManageCorsUsing.html
 
 > The following example uses a zero-dependency module
 > called [`SimpleS3Upload`](https://gist.github.com/chrismccord/37862f1f8b1f5148644b75d20d1cb073)

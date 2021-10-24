@@ -30,6 +30,18 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     end
   end
 
+  def finalize(_tokens, file, {:comment, line, column}) do
+    message = "expected closing `-->` for comment"
+    raise ParseError, file: file, line: line, column: column, description: message
+  end
+
+  def finalize(tokens, _file, _cont) do
+    tokens
+    |> strip_text_token_fully()
+    |> Enum.reverse()
+    |> strip_text_token_fully()
+  end
+
   def tokenize(text, file, indentation, meta, tokens, cont) do
     line = Keyword.get(meta, :line, 1)
     column = Keyword.get(meta, :column, 1)
@@ -38,6 +50,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     case cont do
       :text -> handle_text(text, line, column, [], tokens, state)
       :script -> handle_script(text, line, column, [], tokens, state)
+      {:comment, _, _} -> handle_comment(text, line, column, [], tokens, state)
     end
   end
 
@@ -60,13 +73,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   end
 
   defp handle_text("<!--" <> rest, line, column, buffer, acc, state) do
-    case handle_comment(rest, line, column + 4, ["<!--" | buffer], state) do
-      {:ok, new_rest, new_live, new_column, new_buffer} ->
-        handle_text(new_rest, new_live, new_column, new_buffer, acc, state)
-
-      {:error, message} ->
-        raise ParseError, file: state.file, line: line, column: column, description: message
-    end
+    handle_comment(rest, line, column + 4, ["<!--" | buffer], acc, state)
   end
 
   defp handle_text("</" <> rest, line, column, buffer, acc, state) do
@@ -132,25 +139,24 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_comment
 
-  defp handle_comment("\r\n" <> rest, line, _column, buffer, state) do
-    handle_comment(rest, line + 1, state.column_offset, ["\r\n" | buffer], state)
+  defp handle_comment("\r\n" <> rest, line, _column, buffer, acc, state) do
+    handle_comment(rest, line + 1, state.column_offset, ["\r\n" | buffer], acc, state)
   end
 
-  defp handle_comment("\n" <> rest, line, _column, buffer, state) do
-    handle_comment(rest, line + 1, state.column_offset, ["\n" | buffer], state)
+  defp handle_comment("\n" <> rest, line, _column, buffer, acc, state) do
+    handle_comment(rest, line + 1, state.column_offset, ["\n" | buffer], acc, state)
   end
 
-  defp handle_comment("-->" <> rest, line, column, buffer, _state) do
-    {:ok, rest, line, column + 3, ["-->" | buffer]}
+  defp handle_comment("-->" <> rest, line, column, buffer, acc, state) do
+    handle_text(rest, line, column + 3, ["-->" | buffer], acc, state)
   end
 
-  defp handle_comment(<<c::utf8, rest::binary>>, line, column, buffer, state) do
-    handle_comment(rest, line, column + 1, [char_or_bin(c) | buffer], state)
+  defp handle_comment(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
+    handle_comment(rest, line, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_comment(<<>>, line, column, _buffer, state) do
-    message = "expected closing `-->` for comment"
-    raise ParseError, file: state.file, line: line, column: column, description: message
+  defp handle_comment(<<>>, line, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, line, column), {:comment, line, column})
   end
 
   ## handle_tag_open
@@ -158,6 +164,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_tag_open(text, line, column, acc, state) do
     case handle_tag_name(text, column, []) do
       {:ok, name, new_column, rest} ->
+        acc = if strip_tag?(name), do: strip_text_token_partially(acc), else: acc
         acc = [{:tag_open, name, [], %{line: line, column: column - 1}} | acc]
         handle_maybe_tag_open_end(rest, line, new_column, acc, state)
 
@@ -170,22 +177,18 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   defp handle_tag_close(text, line, column, acc, state) do
     case handle_tag_name(text, column, []) do
-      {:ok, name, new_column, rest} ->
+      {:ok, name, new_column, ">" <> rest} ->
         acc = [{:tag_close, name, %{line: line, column: column - 2}} | acc]
-        handle_tag_close_end(rest, line, new_column, acc, state)
+        rest = if strip_tag?(name), do: String.trim_leading(rest), else: rest
+        handle_text(rest, line, new_column + 1, [], acc, state)
+
+      {:ok, _, new_column, _} ->
+        message = "expected closing `>`"
+        raise ParseError, file: state.file, line: line, column: new_column, description: message
 
       {:error, message} ->
         raise ParseError, file: state.file, line: line, column: column, description: message
     end
-  end
-
-  defp handle_tag_close_end(">" <> rest, line, column, acc, state) do
-    handle_text(rest, line, column + 1, [], acc, state)
-  end
-
-  defp handle_tag_close_end(_text, line, column, _acc, state) do
-    message = "expected closing `>`"
-    raise ParseError, file: state.file, line: line, column: column, description: message
   end
 
   ## handle_tag_name
@@ -525,5 +528,29 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   defp pop_brace(%{braces: [pos | braces]} = state) do
     {pos, %{state | braces: braces}}
+  end
+
+  # Strip space before slots
+  defp strip_tag?(":" <> _), do: true
+  defp strip_tag?(_), do: false
+
+  defp strip_text_token_fully(tokens) do
+    with [{:text, text, _} | rest] <- tokens,
+         "" <- String.trim_leading(text) do
+      strip_text_token_fully(rest)
+    else
+      _ -> tokens
+    end
+  end
+
+  defp strip_text_token_partially(tokens) do
+    with [{:text, text, meta} | rest] <- tokens do
+      case String.trim_leading(text) do
+        "" -> strip_text_token_partially(rest)
+        text -> [{:text, text, meta} | rest]
+      end
+    else
+      _ -> tokens
+    end
   end
 end

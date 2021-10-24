@@ -12,6 +12,7 @@ import {
   PHX_PARENT_ID,
   PHX_PRIVATE,
   PHX_REF,
+  PHX_ROOT_ID,
   PHX_SESSION,
   PHX_STATIC,
   PHX_UPLOAD_REF,
@@ -20,7 +21,6 @@ import {
 } from "./constants"
 
 import {
-  clone,
   logError
 } from "./utils"
 
@@ -57,7 +57,7 @@ let DOM = {
   },
 
   markPhxChildDestroyed(el){
-    el.setAttribute(PHX_SESSION, "")
+    if(this.isPhxChild(el)){ el.setAttribute(PHX_SESSION, "") }
     this.putPrivate(el, "destroyed", true)
   },
 
@@ -116,9 +116,18 @@ let DOM = {
     el[PHX_PRIVATE][key] = value
   },
 
+  updatePrivate(el, key, defaultVal, updateFunc){
+    let existing = this.private(el, key)
+    if(existing === undefined){
+      this.putPrivate(el, key, updateFunc(defaultVal))
+    } else {
+      this.putPrivate(el, key, updateFunc(existing))
+    }
+  },
+
   copyPrivates(target, source){
     if(source[PHX_PRIVATE]){
-      target[PHX_PRIVATE] = clone(source[PHX_PRIVATE])
+      target[PHX_PRIVATE] = source[PHX_PRIVATE]
     }
   },
 
@@ -296,15 +305,6 @@ let DOM = {
     }
   },
 
-  syncPropsToAttrs(el){
-    if(el instanceof HTMLSelectElement){
-      let selectedItem = el.options.item(el.selectedIndex)
-      if(selectedItem && selectedItem.getAttribute("selected") === null){
-        selectedItem.setAttribute("selected", "")
-      }
-    }
-  },
-
   isTextualInput(el){ return FOCUSABLE_INPUTS.indexOf(el.type) >= 0 },
 
   isNowTriggerFormExternal(el, phxTriggerExternal){
@@ -347,7 +347,7 @@ let DOM = {
   },
 
   replaceRootContainer(container, tagName, attrs){
-    let retainedAttrs = new Set(["id", PHX_SESSION, PHX_STATIC, PHX_MAIN])
+    let retainedAttrs = new Set(["id", PHX_SESSION, PHX_STATIC, PHX_MAIN, PHX_ROOT_ID])
     if(container.tagName.toLowerCase() === tagName.toLowerCase()){
       Array.from(container.attributes)
         .filter(attr => !retainedAttrs.has(attr.name.toLowerCase()))
@@ -367,6 +367,42 @@ let DOM = {
       container.replaceWith(newContainer)
       return newContainer
     }
+  },
+
+  getSticky(el, name, defaultVal){
+    let op = (DOM.private(el, "sticky") || []).find(([existingName, ]) => name === existingName)
+    if(op){
+      let [_name, _op, stashedResult] = op
+      return stashedResult
+    } else {
+      return typeof(defaultVal) === "function" ? defaultVal() : defaultVal
+    }
+  },
+
+  deleteSticky(el, name){
+    this.updatePrivate(el, "sticky", [], ops => {
+      return ops.filter(([existingName, _]) => existingName !== name)
+    })
+  },
+
+  putSticky(el, name, op){
+    let stashedResult = op(el)
+    this.updatePrivate(el, "sticky", [], ops => {
+      let existingIndex = ops.findIndex(([existingName, ]) => name === existingName)
+      if(existingIndex >= 0){
+        ops[existingIndex] = [name, op, stashedResult]
+      } else {
+        ops.push([name, op, stashedResult])
+      }
+      return ops
+    })
+  },
+
+  applyStickyOperations(el){
+    let ops = DOM.private(el, "sticky")
+    if(!ops){ return }
+
+    ops.forEach(([name, op, _stashed]) => this.putSticky(el, name, op))
   }
 }
 

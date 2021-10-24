@@ -16,21 +16,24 @@ callback, for example:
 | Binding                | Attributes |
 |------------------------|------------|
 | [Params](#click-events) | `phx-value-*` |
-| [Click Events](#click-events) | `phx-click`, `phx-capture-click` |
+| [Click Events](#click-events) | `phx-click`, `phx-click-away` |
 | [Form Events](form-bindings.md) | `phx-change`, `phx-submit`, `phx-feedback-for`, `phx-disable-with`, `phx-trigger-action`, `phx-auto-recover` |
 | [Focus/Blur Events](#focus-and-blur-events) | `phx-blur`, `phx-focus`, `phx-window-blur`, `phx-window-focus` |
 | [Key Events](#key-events) | `phx-keydown`, `phx-keyup`, `phx-window-keydown`, `phx-window-keyup`, `phx-key` |
-| [DOM Patching](dom-patching.md) | `phx-update` |
+| [DOM Patching](dom-patching.md) | `phx-update`, `phx-remove` |
 | [JS Interop](js-interop.md#client-hooks) | `phx-hook` |
 | [Rate Limiting](#rate-limiting-events-with-debounce-and-throttle) | `phx-debounce`, `phx-throttle` |
 | [Static tracking](`Phoenix.LiveView.static_changed?/1) | `phx-track-static` |
-| [Loading states](js-interop.md#loading-state-and-errors) | `phx-page-loading` |
 
 ## Click Events
 
 The `phx-click` binding is used to send click events to the server.
 When any client event, such as a `phx-click` click is pushed, the value
 sent to the server will be chosen with the following priority:
+
+  * The `:value` specified in `Phoenix.LiveView.JS.push/3`, such as:
+
+        <div phx-click={JS.push("inc", value: %{myvar1: @val1})}>
 
   * Any number of optional `phx-value-` prefixed attributes, such as:
 
@@ -43,9 +46,9 @@ sent to the server will be chosen with the following priority:
     If the `phx-value-` prefix is used, the server payload will also contain a `"value"`
     if the element's value attribute exists.
 
-  * When receiving a map on the server, the payload will also include user defined metadata
-    of the client event, or an empty map if none is set. For example, the following `LiveSocket`
-    client option would send the coordinates and `altKey` information for all clicks:
+  * The payload will also include any additional user defined metadata of the client event.
+    For example, the following `LiveSocket` client option would send the coordinates and
+    `altKey` information for all clicks:
 
         let liveSocket = new LiveSocket("/live", Socket, {
           params: {_csrf_token: csrfToken},
@@ -60,13 +63,8 @@ sent to the server will be chosen with the following priority:
           }
         })
 
-
-The `phx-capture-click` event is just like `phx-click`, but instead of the click event
-being dispatched to the closest `phx-click` element as it bubbles up through the DOM, the event
-is dispatched as it propagates from the top of the DOM tree down to the target element. This is
-useful when wanting to bind click events without receiving bubbled events from child UI elements.
-Since capturing happens before bubbling, this can also be important for preparing or preventing
-behaviour that will be applied during the bubbling phase.
+The `phx-click-away` event is fired when a click event happens outside of the element.
+This is useful for hiding toggled containers like drop-downs.
 
 ## Focus and Blur Events
 
@@ -88,13 +86,6 @@ values will be sent as part of the payload. For example:
         phx-value-page="123">
       ...
     </div>
-
-The following window-level bindings are supported:
-
-  * `phx-window-focus`
-  * `phx-window-blur`
-  * `phx-window-keydown`
-  * `phx-window-keyup`
 
 ## Key Events
 
@@ -203,13 +194,93 @@ The following specialized behavior is performed for forms and keydown bindings:
   * A `phx-keydown` binding is only throttled for key repeats. Unique keypresses
     back-to-back will dispatch the pressed key events.
 
+## JS Commands
+
+LiveView bindings support a JavaScript command interface via the `Phoenix.LiveView.JS` module, which allows you to specify utility operations that execute on the client when firing `phx-` binding events, such as `phx-click`, `phx-change`, etc. Commands compose together to allow you to push events, add classes to elements, transition elements in and out, and more.
+See the `Phoenix.LiveView.JS` documentation for full usage.
+
+For a small example of what's possible, imagine you want to show and hide a modal on the page without needing to make the round trip to the server to render the content:
+
+```heex
+<div id="modal" class="modal">
+  My Modal
+</div>
+
+<button phx-click={JS.show(to: "#modal", transition: "fade-in")}>
+  show modal
+</button>
+
+<button phx-click={JS.hide(to: "#modal", transition: "fade-out")}>
+  hide modal
+</button>
+
+<button phx-click={JS.toggle(to: "#modal", in: "fade-in", out: "fade-out")}>
+  toggle modal
+</button>
+```
+
+Or if your UI library relies on classes to perform the showing or hiding:
+
+```heex
+<div id="modal" class="modal">
+  My Modal
+</div>
+
+<button phx-click={JS.add_class("show", to: "#modal", transition: "fade-in")}>
+  show modal
+</button>
+
+<button phx-click={JS.remove_class("show", to: "#modal", transition: "fade-out")}>
+  hide modal
+</button>
+```
+
+Commands compose together. For example, you can push an event to the server and
+immediately hide the modal on the client:
+
+```heex
+<div id="modal" class="modal">
+  My Modal
+</div>
+
+<button phx-click={JS.push("modal-closed") |> JS.remove_class("show", to: "#modal", transition: "fade-out")}>
+  hide modal
+</button>
+```
+
+It is also useful to extract commands into their own functions:
+
+```elixir
+alias Phoenix.LiveView.JS
+
+def hide_modal(js \\ %JS{}, selector) do
+  js
+  |> JS.push("modal-closed")
+  |> JS.remove_class("show", to: selector, transition: "fade-out")
+end
+```
+
+```heex
+<button phx-click={hide_modal("#modal")}>hide modal</button>
+```
+
+The `Phoenix.LiveView.JS.push/3` command is particularly powerful in allowing you to customize the event being pushed to the server. For example, imagine you start with a familiar `phx-click` which pushes a mesasge to the server when clicked:
+
+    <button phx-click="clicked">click</button>
+
+Now imagine you want to customize what happens when the `"clicked"` event is pushed, such as which component should be targetted, which element should receive css loading state classes, etc. This can be accomplished with options on the JS push command. For example:
+
+    <button phx-click={JS.push("clicked", target: @myself, loading: ".container")}>click</button>
+
+See `Phoenix.LiveView.JS.push/3` for all supported options.
+
 ## LiveView Specific Events
 
 The `lv:` event prefix supports LiveView specific features that are handled
 by LiveView without calling the user's `handle_event/3` callbacks. Today,
 the following events are supported:
 
-  - `lv:clear-flash` – clears the flash when sent to the server. If a
+  - `lv:clear-flash` – clears the flash when sent to the server. If a
     `phx-value-key` is provided, the specific key will be removed from the flash.
 
 For example:

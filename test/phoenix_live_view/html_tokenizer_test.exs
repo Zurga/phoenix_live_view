@@ -69,6 +69,16 @@ defmodule Phoenix.LiveView.HTMLTokenizerTest do
                {:tag_open, "br", [], %{line: 5, column: 5}}
              ] = tokenize(code)
     end
+
+    test "raise on incomplete comment (EOF)" do
+      assert_raise ParseError, "nofile:3:7: expected closing `-->` for comment", fn ->
+        tokenize("""
+        <div>
+        <!-- a comment)
+        </div>\
+        """)
+      end
+    end
   end
 
   describe "opening tag" do

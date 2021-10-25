@@ -2,14 +2,15 @@ import {Socket} from "phoenix"
 import LiveSocket from "phoenix_live_view/live_socket"
 
 let stubViewPushEvent = (view, callback) => {
-  view.pushEvent = (type, el, targetCtx, phxEvent, meta, opts = {}) => {
-    return callback(type, el, targetCtx, phxEvent, meta, opts)
+  view.pushEvent = (type, target, targetCtx, phxEvent, meta) => {
+    return callback(type, target, targetCtx, phxEvent, meta)
   }
 }
 
 let prepareLiveViewDOM = (document, rootId) => {
   document.body.innerHTML = `
-    <div data-phx-session="abc123"
+    <div data-phx-view="View"
+         data-phx-session="abc123"
          data-phx-root-id="${rootId}"
          id="${rootId}">
       <label for="plus">Plus</label>
@@ -30,7 +31,7 @@ describe("metadata", () => {
     let view = liveSocket.getViewByEl(document.getElementById("root"))
     let btn = view.el.querySelector("button")
     let meta = {}
-    stubViewPushEvent(view, (type, el, target, targetCtx, phxEvent, metadata) => {
+    stubViewPushEvent(view, (type, target, targetCtx, phxEvent, metadata) => {
       meta = metadata
     })
     btn.dispatchEvent(new Event("click", {bubbles: true}))
@@ -54,7 +55,7 @@ describe("metadata", () => {
     let view = liveSocket.getViewByEl(document.getElementById("root"))
     let btn = view.el.querySelector("button")
     let meta = {}
-    stubViewPushEvent(view, (type, el, target, phxEvent, metadata, opts) => {
+    stubViewPushEvent(view, (type, target, targetCtx, phxEvent, metadata) => {
       meta = metadata
     })
     btn.dispatchEvent(new Event("click", {bubbles: true}))

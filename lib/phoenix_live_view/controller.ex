@@ -19,11 +19,8 @@ defmodule Phoenix.LiveView.Controller do
   ## Examples
 
       defmodule ThermostatController do
-        use MyAppWeb, :controller
-
-        # "use MyAppWeb, :controller" should import Phoenix.LiveView.Controller.
-        # If it does not, you can either import it there or uncomment the line below:
-        # import Phoenix.LiveView.Controller
+        ...
+        import Phoenix.LiveView.Controller
 
         def show(conn, %{"id" => thermostat_id}) do
           live_render(conn, ThermostatLive, session: %{

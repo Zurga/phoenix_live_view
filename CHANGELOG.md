@@ -1,19 +1,6 @@
 # Changelog
 
-## 0.17.2 (2021-10-22)
-
-### Bug fixes
-  - Fix HTML engine bug causing attribute expressions to be incorrectly evaluated in certain cases
-  - Fix show/hide/toggle custom display not being restored.
-  - Fix default `to` target for `JS.show|hide|dispatch`
-  - Fix form input targetting
-
-## 0.17.1 (2021-10-21)
-
-### Bug fixes
-  - Fix SVG element support for phx binding interactions
-
-## 0.17.0 (2021-10-21)
+## 0.17.0
 
 ### Breaking Changes
 
@@ -67,44 +54,22 @@ Stateful LiveComponents (where an `:id` is given) must now return HEEx templates
 are no longer supported. This addresses bugs and allows stateful components
 to be rendered more efficiently client-side.
 
-#### phx-disconnected class has been replaced with phx-loading
-
-Due to a bug in the newly released Safari 15, the previously used `.phx-disconnected` class has been replaced by a new `.phx-loading` class. The reason for the change is `phx.new` included a `.phx-disconnected` rule in the generated `app.css` which triggers the Safari bug. Renaming the class avoids applying the erronous rule for existing applications. Folks can upgrade by simply renaming their `.phx-disconnected` rules to `.phx-loading`.
-
-#### phx-capture-click has been deprecated in favor of phx-click-away
-
-The new phx-click-away binding replaces phx-capture-click and is much more versatile because it can detect "click focus" being lost on containers.
-
-#### Removal of previously deprecated functionality
+#### Previously deprecated functionality
 
 Some functionality that was previously deprecated has been removed:
 
   - Implicit assigns in `live_component` do-blocks is no longer supported
-  - Passing a `@socket` to `live_component` will now raise if possible
+  - Passing a `@socket` to `live_component` will raise when possible
 
 ### Enhancements
-  - Allow slots in function components: they are marked as `<:slot_name>` and can be rendered with `<%= render_slot @slot_name %>`
-  - Add JS command for executing JavaScript utility operations on the client with an extended push API
-  - Optimize string attributes:
-    - If the attribute is a string interpolation, such as `<div class={"foo bar #{@baz}"}>`, only the interpolation part is marked as dynamic
-    - If the attribute can be empty, such as "class" and "style", keep the attribute name as static
-  - Add a function component for rendering `Phoenix.LiveComponent`. Instead of `<%= live_component FormComponent, id: "form" %>`, you must now do: `<.live_component module={FormComponent} id="form" />`
+
+  - Add `<.live_component module={FormComponent} id="form" />`
 
 ### Bug fixes
-  - Fix LiveViews with form recovery failing to properly mount following a reconnect when preceeded by a live redirect
-  - Fix stale session causing full redirect fallback when issuing a `push_redirect` from mount
-  - Add workaround for Safari bug causing img tags with srcset and video with autoplay to fail to render
-  - Support EEx interpolation inside HTML comments in HEEx templates
-  - Support HTML tags inside script tags (as in regular HTML)
-  - Raise if using quotes in attribute names
-  - Include the filename in error messages when it is not possible to parse interpolated attributes
-  - Make sure the test client always sends the full URL on `live_patch`/`live_redirect`. This mirrors the behaviour of the JavaScript client
-  - Do not reload flash from session on `live_redirect`s
-  - Fix select drop-down flashes in chrome when the DOM is patched during focus
 
 ### Deprecations
+
   - `<%= live_component MyModule, id: @user.id, user: @user %>` is deprecated in favor of `<.live_component module={MyModule} id={@user.id} user={@user} />`. Notice the new API requires using HEEx templates. This change allows us to further improve LiveComponent and bring new features such as slots to them.
-  - `render_block/2` in deprecated in favor of `render_slot/2`
 
 ## 0.16.4 (2021-09-22)
 
@@ -297,10 +262,6 @@ Change it to:
 ```js
 import { LiveSocket } from "phoenix_live_view"
 ```
-
-Additionally on the client, the root LiveView element no longer exposes the
-LiveView module name, therefore the `phx-view` attribute is never set.
-Similarly, the `viewName` property of client hooks has been removed.
 
 ### Enhancements
   - Introduce HEEx templates

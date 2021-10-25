@@ -112,12 +112,6 @@ defmodule Phoenix.LiveViewTest.Router do
     live "/lifecycle/components", HooksLive.WithComponent
     live "/lifecycle/handle-params-not-defined", HooksLive.HandleParamsNotDefined
 
-    # live_patch
-    scope host: "app.example.com" do
-      live "/with-host/full", HostLive, :full
-      live "/with-host/path", HostLive, :path
-    end
-
     # live_session
     live_session :test do
       live "/thermo-live-session", ThermostatLive
@@ -141,21 +135,8 @@ defmodule Phoenix.LiveViewTest.Router do
       live "/lifecycle/halt-connected-mount", HooksLive.Noop
     end
 
-    live_session :mount_mod_arg, on_mount: {Phoenix.LiveViewTest.MountArgs, :inlined} do
-      live "/lifecycle/mount-mod-arg", HooksLive.Noop
-    end
-
-    live_session :mount_mods,
-      on_mount: [Phoenix.LiveViewTest.OnMount, Phoenix.LiveViewTest.OtherOnMount] do
-      live "/lifecycle/mount-mods", HooksLive.Noop
-    end
-
-    live_session :mount_mod_args,
-      on_mount: [
-        {Phoenix.LiveViewTest.OnMount, :other},
-        {Phoenix.LiveViewTest.OtherOnMount, :other}
-      ] do
-      live "/lifecycle/mount-mods-args", HooksLive.Noop
+    live_session :mount_mfa, on_mount: {Phoenix.LiveViewTest.MountArgs, :inlined} do
+      live "/lifecycle/mount-args", HooksLive.Noop
     end
   end
 

@@ -25,6 +25,72 @@ defmodule Phoenix.ComponentTest do
              Hello WORLD\
              """
     end
+
+    def hello_with_block(assigns) do
+      ~H"""
+      Hello <%= @name %>
+      <%= render_block @inner_block %>
+      """
+    end
+
+    test "renders component with block" do
+      assigns = %{}
+
+      assert h2s(~H"""
+             <%= component &hello_with_block/1, name: "WORLD" do %>
+             THE INNER BLOCK
+             <% end %>
+             """) == """
+             Hello WORLD
+
+             THE INNER BLOCK
+             """
+    end
+
+    test "renders component with block from content_tag" do
+      assigns = %{}
+
+      assert h2s(~H"""
+             <%= Phoenix.HTML.Tag.content_tag :div do %>
+             <%= component &hello_with_block/1, name: "WORLD" do %>
+             THE INNER BLOCK
+             <% end %>
+             <% end %>
+             """) == """
+             <div>
+             Hello WORLD
+
+             THE INNER BLOCK
+
+             </div>\
+             """
+    end
+
+    defp hello_with_block_args(assigns) do
+      ~H"""
+      Hello <%= @name %>
+      <%= render_block @inner_block, arg1: 1, arg2: 2 %>
+      """
+    end
+
+    test "render component with block passing args" do
+      assigns = %{}
+
+      assert h2s(~H"""
+             <%= component &hello_with_block_args/1, name: "WORLD" do %>
+             <% [arg1: arg1, arg2: arg2] -> %>
+             THE INNER BLOCK
+             ARG1: <%= arg1 %>
+             ARG2: <%= arg2 %>
+             <% end %>
+             """) == """
+             Hello WORLD
+
+             THE INNER BLOCK
+             ARG1: 1
+             ARG2: 2
+             """
+    end
   end
 
   describe "change tracking" do
@@ -159,11 +225,11 @@ defmodule Phoenix.ComponentTest do
     defp inner_changed(assigns) do
       ~H"""
       <%= inspect(assigns.__changed__) %>
-      <%= render_slot(@inner_block, "var") %>
+      <%= render_block(@inner_block, "var") %>
       """
     end
 
-    test "with @inner_block" do
+    test "with block" do
       assigns = %{foo: 1, __changed__: %{}}
       assert eval(~H|<.inner_changed foo={@foo}></.inner_changed>|) == [nil]
       assert eval(~H|<.inner_changed><%= @foo %></.inner_changed>|) == [nil]
@@ -171,7 +237,7 @@ defmodule Phoenix.ComponentTest do
       assigns = %{foo: 1, __changed__: %{foo: true}}
 
       assert eval(~H|<.inner_changed foo={@foo}></.inner_changed>|) ==
-               [["%{foo: true}", nil]]
+               [["%{foo: true, inner_block: true}", []]]
 
       assert eval(
                ~H|<.inner_changed foo={@foo}><%= inspect(assigns.__changed__) %></.inner_changed>|
@@ -191,7 +257,7 @@ defmodule Phoenix.ComponentTest do
       assigns = %{foo: 1, __changed__: %{foo: true}}
 
       assert eval(~H|<.inner_changed let={_foo} foo={@foo}></.inner_changed>|) ==
-               [["%{foo: true}", nil]]
+               [["%{foo: true, inner_block: true}", []]]
 
       assert eval(
                ~H|<.inner_changed let={_foo} foo={@foo}><%= inspect(assigns.__changed__) %></.inner_changed>|

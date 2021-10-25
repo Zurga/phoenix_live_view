@@ -26,8 +26,7 @@ defmodule Phoenix.LiveView.Route do
   end
 
   @doc """
-  Returns the internal or external matched LiveView route info for the given socket
-  and uri, raises if none is available.
+  Returns the internal or external matched LiveView route info for the given uri
   """
   def live_link_info!(%Socket{router: nil}, view, _uri) do
     raise ArgumentError,
@@ -53,16 +52,12 @@ defmodule Phoenix.LiveView.Route do
     end
   end
 
-  @doc """
-  Returns the internal or external matched LiveView route info for the given uri.
-  """
   def live_link_info(endpoint, router, uri) when is_binary(uri) do
     live_link_info(endpoint, router, URI.parse(uri))
   end
 
-  def live_link_info(endpoint, router, %URI{} = parsed_uri)
-      when is_atom(endpoint) and is_atom(router) do
-    %URI{host: host, path: path, query: query} = parsed_uri
+  def live_link_info(endpoint, router, %URI{} = uri) when is_atom(endpoint) and is_atom(router) do
+    %URI{host: host, path: path, query: query} = parsed_uri = URI.parse(uri)
     query_params = if query, do: Plug.Conn.Query.decode(query), else: %{}
 
     split_path =

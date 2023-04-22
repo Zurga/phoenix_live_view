@@ -91,19 +91,31 @@ var EntryUploader = class {
     this.offset = 0;
     this.chunkSize = chunkSize;
     this.chunkTimer = null;
-    this.uploadChannel = liveSocket.channel(`lvu:${entry.ref}`, { token: entry.metadata() });
+    this._started = false;
+    this._onDone = void 0;
   }
   error(reason) {
+    this._started = false;
     clearTimeout(this.chunkTimer);
     this.uploadChannel.leave();
     this.entry.error(reason);
+    this.onDone();
   }
-  upload() {
+  upload(onDone) {
+    this._onDone = onDone;
+    this.uploadChannel = this.liveSocket.channel(`lvu:${this.entry.ref}`, { token: this.entry.metadata() });
+    this._started = true;
     this.uploadChannel.onError((reason) => this.error(reason));
     this.uploadChannel.join().receive("ok", (_data) => this.readNextChunk()).receive("error", (reason) => this.error(reason));
   }
   isDone() {
     return this.offset >= this.entry.file.size;
+  }
+  onDone() {
+    typeof this._onDone === "function" && this._onDone();
+  }
+  hasStarted() {
+    return this._started;
   }
   readNextChunk() {
     let reader = new window.FileReader();
@@ -126,6 +138,8 @@ var EntryUploader = class {
       this.entry.progress(this.offset / this.entry.file.size * 100);
       if (!this.isDone()) {
         this.chunkTimer = setTimeout(() => this.readNextChunk(), this.liveSocket.getLatencySim() || 0);
+      } else {
+        this.onDone();
       }
     });
   }
@@ -180,10 +194,24 @@ var isEmpty = (obj) => {
 };
 var maybe = (el, callback) => el && callback(el);
 var channelUploader = function(entries, onError, resp, liveSocket) {
-  entries.forEach((entry) => {
-    let entryUploader = new EntryUploader(entry, resp.config.chunk_size, liveSocket);
-    entryUploader.upload();
-  });
+  let entryUploaders = entries.map((entry) => new EntryUploader(entry, resp.config.chunk_size, liveSocket));
+  if (entries.length <= resp.config.max_concurrency) {
+    entryUploaders.forEach((uploader) => uploader.upload(() => null));
+  } else {
+    uploadInBatches(entryUploaders, resp.config.max_concurrency);
+  }
+};
+var uploadInBatches = function(entryUploaders, maxConcurrency) {
+  const uploadersToProcess = entryUploaders.filter((u) => !(u.isDone() || u.hasStarted()) && !u.entry._isCancelled);
+  if (uploadersToProcess.length === 0)
+    return;
+  const inProgress = entryUploaders.filter((u) => u.hasStarted() && !u.isDone()).length;
+  for (let i = 0; i < maxConcurrency - inProgress; i++) {
+    const uploader = uploadersToProcess[i];
+    if (uploader && !uploader.hasStarted() && !uploader.isDone()) {
+      uploader.upload(() => uploadInBatches(entryUploaders, maxConcurrency));
+    }
+  }
 };
 
 // js/phoenix_live_view/browser.js

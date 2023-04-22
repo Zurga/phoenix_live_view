@@ -135,6 +135,13 @@ defmodule Phoenix.LiveView.Upload do
     put_upload_error(socket, conf.name, entry_ref, :external_client_failure)
   end
 
+  def update_progress(%Socket{} = socket, config_ref, entry_ref, error) do
+    IO.inspect(error)
+    conf = get_upload_by_ref!(socket, config_ref)
+
+    put_upload_error(socket, conf.name, entry_ref, :external_client_failure)
+  end
+
   @doc """
   Puts the entries into the `%UploadConfig{}`.
   """
@@ -339,7 +346,8 @@ defmodule Phoenix.LiveView.Upload do
     client_meta = %{
       max_file_size: conf.max_file_size,
       max_entries: conf.max_entries,
-      chunk_size: conf.chunk_size
+      chunk_size: conf.chunk_size,
+      max_concurrency: conf.max_concurrency
     }
 
     {new_socket, new_conf, new_entries} = mark_preflighted(socket, conf)

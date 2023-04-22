@@ -10,6 +10,40 @@ import {
 } from "./utils"
 
 import LiveUploader from "./live_uploader"
+let toCanvas = function(imgEl){
+          // We resize the image, such that it fits in the configured height x width, but
+          // keep the aspect ratio. We could also easily crop, pad or squash the image, if desired
+          const canvas = document.createElement("canvas")
+          const ctx = canvas.getContext("2d")
+          const widthScale = this.boundWidth / imgEl.width
+          const heightScale = this.boundHeight / imgEl.height
+          const scale = Math.min(widthScale, heightScale)
+          canvas.width = Math.round(imgEl.width * scale)
+          canvas.height = Math.round(imgEl.height * scale)
+          ctx.drawImage(imgEl, 0, 0, imgEl.width, imgEl.height, 0, 0, canvas.width, canvas.height)
+          return canvas
+        }
+
+let        canvasToBlob = function(canvas){
+          const imageData = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height)
+          const buffer = this.imageDataToRGBBuffer(imageData)
+          const meta = new ArrayBuffer(8)
+          const view = new DataView(meta)
+          view.setUint32(0, canvas.height, false)
+          view.setUint32(4, canvas.width, false)
+          return new Blob([meta, buffer], {type: "application/octet-stream"})
+        }
+
+let         imageDataToRGBBuffer =  function(imageData){
+          const pixelCount = imageData.width * imageData.height
+          const bytes = new Uint8ClampedArray(pixelCount * 3)
+          for(let i = 0; i < pixelCount; i++) {
+            bytes[i * 3] = imageData.data[i * 4]
+            bytes[i * 3 + 1] = imageData.data[i * 4 + 1]
+            bytes[i * 3 + 2] = imageData.data[i * 4 + 2]
+          }
+          return bytes.buffer
+        }
 
 export default class UploadEntry {
   static isActive(fileEl, file){

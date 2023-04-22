@@ -127,25 +127,41 @@ var LiveView = (() => {
 
   // js/phoenix_live_view/entry_uploader.js
   var EntryUploader = class {
-    constructor(entry, chunkSize, liveSocket) {
+    constructor(entry, chunkSize, liveSocket, beforeUpload) {
       this.liveSocket = liveSocket;
       this.entry = entry;
       this.offset = 0;
       this.chunkSize = chunkSize;
       this.chunkTimer = null;
-      this.uploadChannel = liveSocket.channel(`lvu:${entry.ref}`, { token: entry.metadata() });
+      this._started = false;
+      this._onDone = void 0;
+      this.beforeUpload = beforeUpload;
     }
     error(reason) {
+      this._started = false;
       clearTimeout(this.chunkTimer);
       this.uploadChannel.leave();
       this.entry.error(reason);
+      this.onDone();
     }
-    upload() {
+    upload(onDone) {
+      this._onDone = onDone;
+      if (this.beforeUpload === "function") {
+        this.entry = this.beforeUpload(this.entry);
+      }
+      this.uploadChannel = this.liveSocket.channel(`lvu:${this.entry.ref}`, { token: this.entry.metadata() });
+      this._started = true;
       this.uploadChannel.onError((reason) => this.error(reason));
       this.uploadChannel.join().receive("ok", (_data) => this.readNextChunk()).receive("error", (reason) => this.error(reason));
     }
     isDone() {
       return this.offset >= this.entry.file.size;
+    }
+    onDone() {
+      typeof this._onDone === "function" && this._onDone();
+    }
+    hasStarted() {
+      return this._started;
     }
     readNextChunk() {
       let reader = new window.FileReader();
@@ -168,20 +184,22 @@ var LiveView = (() => {
         this.entry.progress(this.offset / this.entry.file.size * 100);
         if (!this.isDone()) {
           this.chunkTimer = setTimeout(() => this.readNextChunk(), this.liveSocket.getLatencySim() || 0);
+        } else {
+          this.onDone();
         }
       });
     }
   };
 
   // js/phoenix_live_view/utils.js
-  var logError = (msg, obj) => console.error && console.error(msg, obj);
+  var logError = (msg, obj) => console == null ? void 0 : console.error(msg, obj);
   var isCid = (cid) => {
-    let type = typeof cid;
+    const type = typeof cid;
     return type === "number" || type === "string" && /^(0|[1-9]\d*)$/.test(cid);
   };
   function detectDuplicateIds() {
-    let ids = new Set();
-    let elems = document.querySelectorAll("*[id]");
+    const ids = new Set();
+    const elems = document.querySelectorAll("*[id]");
     for (let i = 0, len = elems.length; i < len; i++) {
       if (ids.has(elems[i].id)) {
         console.error(`Multiple IDs detected: ${elems[i].id}. Ensure unique element ids.`);
@@ -215,17 +233,32 @@ var LiveView = (() => {
   };
   var isEqualObj = (obj1, obj2) => JSON.stringify(obj1) === JSON.stringify(obj2);
   var isEmpty = (obj) => {
-    for (let x in obj) {
+    for (const x in obj) {
       return false;
     }
     return true;
   };
   var maybe = (el, callback) => el && callback(el);
   var channelUploader = function(entries, onError, resp, liveSocket) {
-    entries.forEach((entry) => {
-      let entryUploader = new EntryUploader(entry, resp.config.chunk_size, liveSocket);
-      entryUploader.upload();
-    });
+    maxConcurrency = resp.config.max_concurrency;
+    const entryUploaders = entries.map((entry) => new EntryUploader(entry, resp.config.chunk_size, liveSocket));
+    if (entries.length <= maxConcurrency) {
+      entryUploaders.forEach((uploader) => uploader.upload(() => null));
+    } else {
+      uploadInBatches(entryUploaders, maxConcurrency);
+    }
+  };
+  var uploadInBatches = function(entryUploaders, maxConcurrency2) {
+    const uploadersToProcess = entryUploaders.filter((u) => !(u.isDone() || u.hasStarted()) && !u.entry._isCancelled);
+    if (uploadersToProcess.length === 0)
+      return;
+    const inProgress = entryUploaders.filter((u) => u.hasStarted() && !u.isDone()).length;
+    for (let i = 0; i < maxConcurrency2 - inProgress; i++) {
+      const uploader = uploadersToProcess[i];
+      if (uploader && !uploader.hasStarted() && !uploader.isDone()) {
+        uploader.upload(() => uploadInBatches(entryUploaders, maxConcurrency2));
+      }
+    }
   };
 
   // js/phoenix_live_view/browser.js

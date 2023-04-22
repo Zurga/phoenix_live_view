@@ -30,7 +30,7 @@ defmodule Phoenix.LiveView.UploadChannel do
               return
 
             return ->
-              IO.warn """
+              IO.warn("""
               consuming uploads requires a return signature matching:
 
                   {:ok, value} | {:postpone, value}
@@ -38,7 +38,8 @@ defmodule Phoenix.LiveView.UploadChannel do
               got:
 
                   #{inspect(return)}
-              """
+              """)
+
               GenServer.call(pid, :consume_done, @timeout)
               return
           end
@@ -81,7 +82,8 @@ defmodule Phoenix.LiveView.UploadChannel do
       {:error, reason} when reason in [:expired, :invalid] ->
         {:error, %{reason: :invalid_token}}
 
-      {:error, reason} when reason in [:already_registered, :disallowed] ->
+      {:error, reason}
+      when reason in [:already_registered, :disallowed, :max_concurrency_reached] ->
         {:error, %{reason: reason}}
     end
   end

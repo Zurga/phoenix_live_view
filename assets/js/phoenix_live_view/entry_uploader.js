@@ -3,7 +3,7 @@ import {
 } from "./utils"
 
 export default class EntryUploader {
-  constructor(entry, chunkSize, liveSocket){
+  constructor(entry, chunkSize, liveSocket, beforeUpload){
     this.liveSocket = liveSocket
     this.entry = entry
     this.offset = 0
@@ -11,16 +11,27 @@ export default class EntryUploader {
     this.chunkTimer = null
     this.errored = false
     this.uploadChannel = liveSocket.channel(`lvu:${entry.ref}`, {token: entry.metadata()})
+    this._started = false
+    this._onDone = undefined
+    this.beforeUpload = beforeUpload
   }
 
   error(reason){
     if(this.errored){ return }
     this.errored = true
+    this._started = false
     clearTimeout(this.chunkTimer)
     this.entry.error(reason)
+    this.onDone()
   }
 
-  upload(){
+  upload(onDone){
+    this._onDone = onDone
+    if (this.beforeUpload === "function") {
+      this.entry = this.beforeUpload(this.entry)
+    }
+    this.uploadChannel = this.liveSocket.channel(`lvu:${this.entry.ref}`, {token: this.entry.metadata()})
+    this._started = true
     this.uploadChannel.onError(reason => this.error(reason))
     this.uploadChannel.join()
       .receive("ok", _data => this.readNextChunk())
@@ -28,10 +39,12 @@ export default class EntryUploader {
   }
 
   isDone(){ return this.offset >= this.entry.file.size }
+  onDone() { typeof this._onDone === "function" && this._onDone() }
+  hasStarted() { return this._started }
 
   readNextChunk(){
-    let reader = new window.FileReader()
-    let blob = this.entry.file.slice(this.offset, this.chunkSize + this.offset)
+    const reader = new window.FileReader()
+    const blob = this.entry.file.slice(this.offset, this.chunkSize + this.offset)
     reader.onload = (e) => {
       if(e.target.error === null){
         this.offset += e.target.result.byteLength
@@ -50,6 +63,8 @@ export default class EntryUploader {
         this.entry.progress((this.offset / this.entry.file.size) * 100)
         if(!this.isDone()){
           this.chunkTimer = setTimeout(() => this.readNextChunk(), this.liveSocket.getLatencySim() || 0)
+        } else {
+          this.onDone()
         }
       })
       .receive("error", ({reason}) => this.error(reason))
